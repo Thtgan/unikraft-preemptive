@@ -75,16 +75,49 @@ ENTRY(_ctx_x86_call2)
 	popq %rdi	/* load first argument from stack */
 	ret		/* jump to entrance function left on stack */
 
-/*
- * Do a local context switch
- */
-ENTRY(ukarch_ctx_switch)
-	pushq %rbp
+.macro PUSH_CALLER_SAVE
+	pushfq
+	pushq %rdi
+	pushq %rsi
+	pushq %rdx
+	pushq %rcx
+	pushq %rax
+	pushq %r8
+	pushq %r9
+	pushq %r10
+	pushq %r11
 	pushq %rbx
+	pushq %rbp
 	pushq %r12
 	pushq %r13
 	pushq %r14
 	pushq %r15
+.endm
+
+.macro POP_CALLER_SAVE
+	popq %r15
+	popq %r14
+	popq %r13
+	popq %r12
+	popq %rbp
+	popq %rbx
+	popq %r11
+	popq %r10
+	popq %r9
+	popq %r8
+	popq %rax
+	popq %rcx
+	popq %rdx
+	popq %rsi
+	popq %rdi
+	popfq
+.endm
+
+/*
+ * Do a local context switch
+ */
+ENTRY(ukarch_ctx_switch)
+	PUSH_CALLER_SAVE
 	movq %rsp, UKARCH_CTX_OFFSETOF_SP(%rdi)       /* save ESP */
 	movq UKARCH_CTX_OFFSETOF_SP(%rsi), %rsp       /* restore ESP */
 	lea .Lresume(%rip), %rbx
@@ -92,13 +125,9 @@ ENTRY(ukarch_ctx_switch)
 	pushq UKARCH_CTX_OFFSETOF_IP(%rsi)            /* restore EIP
 						       * (to stack and return)
 						       */
+	sti
 	ret
 
 .Lresume:
-	popq %r15
-	popq %r14
-	popq %r13
-	popq %r12
-	popq %rbx
-	popq %rbp
+	POP_CALLER_SAVE
 	ret

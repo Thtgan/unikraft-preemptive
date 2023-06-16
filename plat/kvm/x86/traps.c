@@ -215,7 +215,7 @@ void traps_table_init(void)
 	extern void cpu_irq_##num(void);				\
 	idt_fillgate(32 + num, cpu_irq_##num, ist)
 
-	FILL_IRQ_GATE(0, 1);
+	FILL_IRQ_GATE(0, 0);
 	FILL_IRQ_GATE(1, 1);
 	FILL_IRQ_GATE(2, 1);
 	FILL_IRQ_GATE(3, 1);

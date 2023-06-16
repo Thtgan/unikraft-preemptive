@@ -81,10 +81,14 @@ int uk_sched_register(struct uk_sched *s);
  */
 unsigned int uk_sched_thread_gc(struct uk_sched *sched);
 
+#include<uk/plat/irq.h>
+
 static inline
 void uk_sched_thread_switch(struct uk_thread *next)
 {
 	struct uk_thread *prev;
+
+	ukplat_lcpu_disable_irq();
 
 	prev = ukplat_per_lcpu_current(__uk_sched_thread_current);
 

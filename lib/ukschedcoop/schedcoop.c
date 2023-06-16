@@ -60,8 +60,8 @@ static void schedcoop_schedule(struct uk_sched *s)
 	__snsec now, min_wakeup_time;
 	unsigned long flags;
 
-	if (unlikely(ukplat_lcpu_irqs_disabled()))
-		UK_CRASH("Must not call %s with IRQs disabled\n", __func__);
+	// if (unlikely(ukplat_lcpu_irqs_disabled()))
+	// 	UK_CRASH("Must not call %s with IRQs disabled\n", __func__);
 
 	prev = uk_thread_current();
 	flags = ukplat_lcpu_save_irqf();
@@ -230,6 +230,56 @@ static __noreturn void idle_thread_fn(void *argp)
 	}
 }
 
+static inline void outb(__u16 port, __u8 v) {
+	__asm__ __volatile__("outb %0,%1" : : "a"(v), "dN"(port));
+}
+
+#include<uk/event.h>
+#include<uk/plat/irq.h>
+
+#define PIC_COMMAND_1                               0x0020
+#define PIC_DATA_1                                  0x0021
+
+#define PIC_COMMAND_2                               0x00A0
+#define PIC_DATA_2                                  0x00A1
+#define PIC_OCW2_EOI_REQUEST                        0x0020
+
+static int __yieldHandler(void *arg) {
+	struct ukplat_event_irq_data* ctx = (struct ukplat_event_irq_data*)arg;
+
+	if (ctx->irq != 0) {
+		return UK_EVENT_HANDLED_CONT;
+	}
+
+	struct uk_thread* thread = uk_thread_current();
+
+	if (++thread->tick == 2) {
+		thread->tick = 0;
+
+		unsigned long flags = ukplat_lcpu_save_irqf();
+
+		outb(PIC_COMMAND_1, PIC_OCW2_EOI_REQUEST);
+
+		//__preemptive = true;
+		uk_sched_yield();
+
+		ukplat_lcpu_restore_irqf(flags);
+	}
+
+	return UK_EVENT_HANDLED;
+}
+
+UK_EVENT_HANDLER_PRIO(UKPLAT_EVENT_IRQ, __yieldHandler, UK_PRIO_EARLIEST);
+
+#define TIMER_CNTR           0x40
+#define TIMER_MODE           0x43
+#define TIMER_SEL0           0x00
+#define TIMER_LATCH          0x00
+#define TIMER_RATEGEN        0x04
+#define TIMER_ONESHOT        0x08
+#define TIMER_16BIT          0x30
+#define TIMER_HZ             1193182
+
 static int schedcoop_start(struct uk_sched *s __maybe_unused,
 			   struct uk_thread *main_thread __maybe_unused)
 {
@@ -243,6 +293,10 @@ static int schedcoop_start(struct uk_sched *s __maybe_unused,
 	 *       Current running threads will be added as soon as
 	 *       a different thread is scheduled.
 	 */
+
+	outb(TIMER_MODE, TIMER_SEL0 | TIMER_RATEGEN | TIMER_16BIT);
+	outb(TIMER_CNTR, (TIMER_HZ / CONFIG_HZ) & 0xff);
+	outb(TIMER_CNTR, (TIMER_HZ / CONFIG_HZ) >> 8);
 
 	ukplat_lcpu_enable_irq();
 
